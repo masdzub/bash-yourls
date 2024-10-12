@@ -2,6 +2,8 @@
 
 A simple Bash script to shorten URLs using the [YOURLS](https://yourls.org/) API. This script allows you to easily generate short links directly from your command line.
 
+[](https://ucarecdn.com/1eb74771-3518-40f6-8a20-47c9dd796f03/-/preview/707x317/)
+
 ## Features
 
 - Shortens URLs using a configurable YOURLS instance.
@@ -97,8 +99,3 @@ Shortened URL: https://sho.rt/abc123
 ## Contributing
 
 Feel free to submit pull requests or issues to improve this script!
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-```
