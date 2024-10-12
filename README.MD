@@ -102,10 +102,3 @@ Feel free to submit pull requests or issues to improve this script!
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 ```
-
-### How to Use This `README.md`:
-1. Create a file named `README.md` in your project directory.
-2. Copy and paste the content above into the file.
-3. Adjust any parts (like the URL examples or features) to fit your specific use case.
-
-This document provides a comprehensive overview of your script, guiding users through installation, configuration, and usage. Let me know if you need any further modifications or additional sections!
