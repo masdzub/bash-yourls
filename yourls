@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+
+# ANSI color codes
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[1;36m'
+RESET='\033[0m'
+
+# Configuration file location
+CONFIG_FILE="$HOME/.config/shortlink.conf"
+
+# Function to load or create the configuration file
+load_config() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo -e "${YELLOW}Configuration file not found. Let's create one.${RESET}"
+        mkdir -p "$HOME/.config"
+        echo -n "Enter YOURLS host (e.g., https://sho.rt/): "
+        read -r YOURLS_HOST
+        echo -n "Enter YOURLS API key: "
+        read -r YOURLS_KEY
+        
+        # Write the configuration to the file
+        cat > "$CONFIG_FILE" << EOF
+YOURLS_HOST="$YOURLS_HOST"
+YOURLS_KEY="$YOURLS_KEY"
+EOF
+        echo -e "${GREEN}Configuration saved to $CONFIG_FILE.${RESET}"
+    fi
+
+    # Source the configuration file
+    source "$CONFIG_FILE"
+}
+
+# Load the configuration (will create it if it doesn't exist)
+load_config
+
+yourls_help() {
+    echo -e "${CYAN}Shorten URLs with YOURLS${RESET}\n"
+    echo -e "${YELLOW}Usage:${RESET}"
+    echo -e "  ${CYAN}${0##*/}${RESET} <url>"
+    echo -e "  ${CYAN}${0##*/}${RESET} <url> -k <KEYWORD> -t <TITLE> -f <FORMAT>"
+    echo -e "  ${CYAN}${0##*/}${RESET} <url> --help\n"
+    echo -e "${YELLOW}Options:${RESET}"
+    echo -e "  -h | --help                Show this screen"
+    echo -e "  -k | --keyword <KEYWORD>   Custom keyword for shortened URL"
+    echo -e "  -t | --title <TITLE>       Custom title for the URL"
+    echo -e "  -f | --format <FORMAT>     Output format (json, xml, simple) [default: simple]\n"
+    echo -e "${YELLOW}Examples:${RESET}"
+    echo -e "  ${CYAN}${0##*/}${RESET} https://example.com -k mykeyword -t \"My Example\" -f json\n"
+    exit 1
+}
+
+# Check if the user has provided the URL, or prompt for it if not
+if [[ -z "$1" ]]; then
+    echo -n "Please enter the URL you want to shorten: "
+    read -r URL
+    if [[ -z "$URL" ]]; then
+        echo -e "${RED}Error: URL is required.${RESET}"
+        yourls_help
+    fi
+else
+    URL=$1
+    shift
+fi
+
+# Initialize optional parameters with default values
+KEYWORD=""
+TITLE=""
+FORMAT="simple"
+
+# Parse options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -k|--keyword)
+            KEYWORD="$2"
+            if [[ -z "$KEYWORD" ]]; then
+                echo -e "${RED}Error: --keyword requires a non-empty value.${RESET}"
+                exit 1
+            fi
+            shift 2
+            ;;
+        -t|--title)
+            TITLE="$2"
+            if [[ -z "$TITLE" ]]; then
+                echo -e "${RED}Error: --title requires a non-empty value.${RESET}"
+                exit 1
+            fi
+            shift 2
+            ;;
+        -f|--format)
+            FORMAT="$2"
+            if [[ -z "$FORMAT" ]]; then
+                echo -e "${RED}Error: --format requires a non-empty value.${RESET}"
+                exit 1
+            fi
+            shift 2
+            ;;
+        -h|--help)
+            yourls_help
+            ;;
+        *)
+            echo -e "${RED}Error: Unknown option '$1'.${RESET}"
+            yourls_help
+            ;;
+    esac
+done
+
+# Execute YOURLS API call
+response=$(curl -s --get \
+    --data-urlencode "signature=$YOURLS_KEY" \
+    --data-urlencode "action=shorturl" \
+    --data-urlencode "url=$URL" \
+    --data-urlencode "keyword=$KEYWORD" \
+    --data-urlencode "title=$TITLE" \
+    --data-urlencode "format=$FORMAT" \
+    "$YOURLS_HOST/yourls-api.php")
+
+# Check if curl succeeded
+if [[ $? -ne 0 ]]; then
+    echo -e "${RED}Error: Failed to connect to YOURLS API.${RESET}"
+    exit 1
+fi
+
+# Check if response is in JSON format and use jq if available
+if [[ "$FORMAT" == "json" ]]; then
+    if ! command -v jq &> /dev/null; then
+        echo -e "${RED}Error: jq is required to format JSON output. Please install jq.${RESET}"
+        echo -e "For example, on Ubuntu, you can install it with: sudo apt-get install jq"
+        exit 1
+    fi
+
+    # Format JSON output with jq and colorize
+    echo "$response" | jq -r '{
+        "Original URL": .url.url,
+        "Shortened URL": .shorturl,
+        "Keyword": .url.keyword,
+        "Title": .title,
+        "Date": .url.date
+    } | to_entries | .[] | "\(.key): \(.value)"' | \
+    awk -v green="$GREEN" -v reset="$RESET" '
+    {
+        gsub("Original URL:", green "Original URL:" reset);
+        gsub("Shortened URL:", green "Shortened URL:" reset);
+        gsub("Keyword:", green "Keyword:" reset);
+        gsub("Title:", green "Title:" reset);
+        gsub("Date:", green "Date:" reset);
+        print
+    }'
+else
+    # Extract the short URL from the response (assumes simple format)
+    shorturl=$(echo "$response" | grep -oE 'https?://[^ ]+')
+
+    # Display both the original and shortened URL
+    echo -e "${GREEN}Original URL:${RESET} $URL"
+    if [[ -n "$shorturl" ]]; then
+        echo -e "${GREEN}Shortened URL:${RESET} $shorturl"
+    else
+        echo -e "${RED}Error: Failed to generate a shortened URL.${RESET}"
+        echo -e "Response: $response"
+    fi
+fi
