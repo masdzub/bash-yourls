@@ -48,8 +48,13 @@ yourls_help() {
     echo -e "  -f | --format <FORMAT>     Output format (json, xml, simple) [default: simple]\n"
     echo -e "${YELLOW}Examples:${RESET}"
     echo -e "  ${CYAN}${0##*/}${RESET} https://example.com -k mykeyword -t \"My Example\" -f json\n"
-    exit 1
+    exit 0
 }
+
+# Check for help option immediately
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    yourls_help
+fi
 
 # Check if the user has provided the URL, or prompt for it if not
 if [[ -z "$1" ]]; then
